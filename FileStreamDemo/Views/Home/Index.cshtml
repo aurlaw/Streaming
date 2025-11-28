@@ -1,0 +1,202 @@
+﻿@{
+    ViewData["Title"] = "Home Page";
+}
+
+<div class="text-center">
+    <h1 class="display-4">Parse Data</h1>
+</div>
+<div class="container mt-4">
+    <div class="card mt-4">
+        <div class="card-body">
+            <h5 class="card-title">Parse people.txt</h5>
+            <div class="mb-3">
+                <label for="batchSize" class="form-label">Batch Size:</label>
+                <input type="number" id="batchSize" class="form-control" style="width: 150px;" 
+                       value="100" min="1" max="10000" />
+                <small class="form-text text-muted">Number of records to send per batch (1-10000)</small>
+            </div>            
+            <button id="startBtn" class="btn btn-primary">Start Parsing</button>
+            <button id="stopBtn" class="btn btn-danger" disabled>Stop</button>
+        </div>
+    </div>
+    <div class="card mt-4">
+        <div class="card-body">
+            <h5 class="card-title">Progress</h5>
+            <div class="progress">
+                <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated" 
+                     role="progressbar" style="width: 0%">
+                    <span id="progressText">0 records</span>
+                </div>
+            </div>
+            <p class="mt-2">
+                <strong>Status:</strong> <span id="status">Ready</span>
+            </p>
+            <div class="alert" role="alert" id="message">
+            </div>            
+        </div>
+    </div>    
+    <div class="card mt-4">
+        <div class="card-body">
+            <h5 class="card-title">Data (<span id="recordCount">0</span> records)</h5>
+            <div style="max-height: 500px; overflow-y: auto;">
+                <table class="table table-striped table-sm">
+                    <thead>
+                    <tr>
+                        <th>First Name</th>
+                        <th>Last Name</th>
+                        <th>Birth Date</th>
+                        <th>Age</th>
+                    </tr>
+                    </thead>
+                    <tbody id="dataTable">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>    
+</div>
+@section Scripts {
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
+    <script>
+        
+        function showMessage(msg, isError) {
+            const messageEl = document.getElementById("message");
+            messageEl.textContent = msg;
+            messageEl.classList.remove("alert-danger", "alert-success");
+            const alertClass = isError ? "alert-danger" : "alert-success";
+            messageEl.classList.add(alertClass);
+        }
+        const connection = new signalR.HubConnectionBuilder()
+            .withUrl("/dataHub")
+            .withAutomaticReconnect()
+            .build();
+
+        let totalRecords = 0;
+        const expectedTotal = 150000;
+
+        connection.on("StreamStarted", function() {
+            console.log("Stream started");
+            document.getElementById("status").textContent = "Streaming...";
+        });
+
+        connection.on("ReceiveBatch", function(people) {
+            const tbody = document.getElementById("dataTable");
+            
+            people.forEach(person => {
+                const row = tbody.insertRow(0); // Insert at top
+                row.insertCell(0).textContent = person.firstName;
+                row.insertCell(1).textContent = person.lastName;
+                row.insertCell(2).textContent = new Date(person.birthDate).toLocaleDateString();
+                row.insertCell(3).textContent = person.age;
+            });
+
+            totalRecords += people.length;
+            document.getElementById("recordCount").textContent = totalRecords.toLocaleString();
+
+            // Limit displayed rows to prevent DOM from getting too large
+            while (tbody.rows.length > 1000) {
+                tbody.deleteRow(tbody.rows.length - 1);
+            }
+        });
+
+        connection.on("Progress", function(count) {
+            const percentage = Math.min((count / expectedTotal) * 100, 100);
+            const progressBar = document.getElementById("progressBar");
+            const progressText = document.getElementById("progressText");
+            
+            progressBar.style.width = percentage + "%";
+            progressText.textContent = count.toLocaleString() + " records";
+        });
+
+        connection.on("StreamCompleted", function(totalCount) {
+            document.getElementById("status").textContent = "Completed";
+            document.getElementById("progressBar").classList.remove("progress-bar-animated");
+            document.getElementById("startBtn").disabled = false;
+            document.getElementById("stopBtn").disabled = true;
+            
+            console.log(`Completed: ${totalCount} records processed`);
+            showMessage(`Processing complete! ${totalCount.toLocaleString()} records loaded.`, false);
+            
+        });
+        connection.on("StreamCancelled", function(totalCount) {
+            document.getElementById("status").textContent = "Cancelled";
+            document.getElementById("progressBar").classList.remove("progress-bar-animated");
+            document.getElementById("startBtn").disabled = false;
+            document.getElementById("stopBtn").disabled = true;
+
+            console.log(`Cancelled: ${totalCount} records processed before stopping`);
+            showMessage(`Processing cancelled. ${totalCount.toLocaleString()} records were loaded.`, true);
+        });
+        connection.on("StopRequested", function() {
+            document.getElementById("status").textContent = "Stopping...";
+        });
+        connection.on("Error", function(message) {
+            document.getElementById("status").textContent = "Error: " + message;
+            document.getElementById("startBtn").disabled = false;
+            document.getElementById("stopBtn").disabled = true;
+            showMessage("Error: " + message, true);
+        });
+
+        connection.start()
+            .then(() => {
+                console.log("SignalR connected");
+                document.getElementById("startBtn").disabled = false;
+            })
+            .catch(err => {
+                console.error("SignalR connection error:", err);
+                showMessage("Failed to connect to SignalR", true);
+            });
+
+        document.getElementById("startBtn").addEventListener("click", async function() {
+            totalRecords = 0;
+            document.getElementById("dataTable").innerHTML = "";
+            document.getElementById("recordCount").textContent = "0";
+            document.getElementById("progressBar").style.width = "0%";
+            document.getElementById("progressText").textContent = "0 records";
+            document.getElementById("progressBar").classList.add("progress-bar-animated");
+            
+            this.disabled = true;
+            document.getElementById("stopBtn").disabled = false;
+            document.getElementById("status").textContent = "Starting...";
+
+            try {
+                // Get the batch size from the input
+                const batchSize = parseInt(document.getElementById("batchSize").value) || 100;
+                console.log("Batch size:", batchSize);  
+                // Validate batch size
+                if (batchSize < 1 || batchSize > 10000) {
+                    showMessage("Batch size must be between 1 and 10000", true);
+                    this.disabled = false;
+                    document.getElementById("stopBtn").disabled = true;
+                    return;
+                }
+                await connection.invoke("StartParsing", batchSize);
+            } catch (error) {
+                console.error("Error starting parsing:", error);
+                showMessage("Failed to start parsing: " + error.message, true);
+                this.disabled = false;
+                document.getElementById("stopBtn").disabled = true;
+            }
+        });
+
+        document.getElementById("stopBtn").addEventListener("click", async function() {
+            this.disabled = true;
+            document.getElementById("status").textContent = "Cancelling...";
+
+            try {
+                await connection.invoke("StopParsing");
+            } catch (error) {
+                console.error("Error stopping parsing:", error);
+                // Don't show alert for connection errors - parsing likely stopped anyway
+                if (error.message && !error.message.includes("Connection closed")) {
+                    showMessage("Failed to stop parsing: " + error.message, true);
+                }
+                // Reset UI state
+                document.getElementById("startBtn").disabled = false;
+                document.getElementById("stopBtn").disabled = true;
+                document.getElementById("status").textContent = "Stopped";
+                document.getElementById("progressBar").classList.remove("progress-bar-animated");
+            }
+        });
+    </script>
+}

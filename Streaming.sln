@@ -1,0 +1,22 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DataGenetator", "DataGenetator\DataGenetator.csproj", "{ABCCD960-95E5-4793-9DBC-BBC9506C3186}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FileStreamDemo", "FileStreamDemo\FileStreamDemo.csproj", "{2A38DF54-A29A-4F6F-B028-2F7E839DDE01}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{ABCCD960-95E5-4793-9DBC-BBC9506C3186}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{ABCCD960-95E5-4793-9DBC-BBC9506C3186}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{ABCCD960-95E5-4793-9DBC-BBC9506C3186}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{ABCCD960-95E5-4793-9DBC-BBC9506C3186}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2A38DF54-A29A-4F6F-B028-2F7E839DDE01}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2A38DF54-A29A-4F6F-B028-2F7E839DDE01}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2A38DF54-A29A-4F6F-B028-2F7E839DDE01}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2A38DF54-A29A-4F6F-B028-2F7E839DDE01}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

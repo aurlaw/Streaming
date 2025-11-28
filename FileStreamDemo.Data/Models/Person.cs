@@ -1,4 +1,4 @@
-namespace FileStreamDemo.Models;
+namespace FileStreamDemo.Data.Models;
 
 public class Person
 {

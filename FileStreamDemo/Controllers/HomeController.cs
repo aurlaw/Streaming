@@ -1,19 +1,16 @@
 using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using FileStreamDemo.Models;
-using FileStreamDemo.Services;
 
 namespace FileStreamDemo.Controllers;
 
 public class HomeController : Controller
 {
     private readonly ILogger<HomeController> _logger;
-    private readonly FileParserService _fileParserService;
 
-    public HomeController(ILogger<HomeController> logger, FileParserService fileParserService)
+    public HomeController(ILogger<HomeController> logger)
     {
         _logger = logger;
-        _fileParserService = fileParserService;
     }
 
     public IActionResult Index()

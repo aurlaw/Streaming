@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using FileStreamDemo.Services;
 using Microsoft.AspNetCore.SignalR;
 
 namespace FileStreamDemo.Hubs;
@@ -7,17 +6,15 @@ namespace FileStreamDemo.Hubs;
 public class DataHub : Hub
 {
     private readonly ILogger<DataHub> _logger;
-    private readonly FileParserService _fileParserService;
     private readonly IConfiguration _configuration;
 
     // Store cancellation token sources per connection
     private static readonly ConcurrentDictionary<string, CancellationTokenSource> _cancellationTokens = new();
 
 
-    public DataHub(ILogger<DataHub> logger, FileParserService fileParserService, IConfiguration configuration)
+    public DataHub(ILogger<DataHub> logger, IConfiguration configuration)
     {
         _logger = logger;
-        _fileParserService = fileParserService;
         _configuration = configuration;
     }
     
@@ -48,8 +45,8 @@ public class DataHub : Hub
 
             await Clients.Caller.SendAsync("StreamStarted");
             
-            var filePath = _configuration["DemoFile"]!;
-            _ = ProcessFileAsync(filePath, Context.ConnectionId, batchSize, cts);
+            // var filePath = _configuration["DemoFile"]!;
+            // _ = ProcessFileAsync(filePath, Context.ConnectionId, batchSize, cts);
             
         }
         catch (Exception ex)
@@ -98,32 +95,32 @@ public class DataHub : Hub
         await base.OnDisconnectedAsync(exception);
     }
     
-    private async Task ProcessFileAsync(string filePath, string connectionId, int batchSize, CancellationTokenSource cts)
-    {
-        try
-        {
-            await _fileParserService.ParseAndStreamFileAsync(filePath, connectionId, cts.Token, batchSize);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, $"Error processing file for connection {connectionId}");
-            try
-            {
-                await Clients.Client(connectionId).SendAsync("Error", ex.Message);
-            }
-            catch
-            {
-                // Client might have disconnected
-            }
-        }
-        finally
-        {
-            // Clean up after completion or cancellation
-            if (_cancellationTokens.TryRemove(connectionId, out var removedCts))
-            {
-                removedCts.Dispose();
-            }
-        }
-    }
+    // private async Task ProcessFileAsync(string filePath, string connectionId, int batchSize, CancellationTokenSource cts)
+    // {
+    //     try
+    //     {
+    //         await _fileParserService.ParseAndStreamFileAsync(filePath, connectionId, cts.Token, batchSize);
+    //     }
+    //     catch (Exception ex)
+    //     {
+    //         _logger.LogError(ex, $"Error processing file for connection {connectionId}");
+    //         try
+    //         {
+    //             await Clients.Client(connectionId).SendAsync("Error", ex.Message);
+    //         }
+    //         catch
+    //         {
+    //             // Client might have disconnected
+    //         }
+    //     }
+    //     finally
+    //     {
+    //         // Clean up after completion or cancellation
+    //         if (_cancellationTokens.TryRemove(connectionId, out var removedCts))
+    //         {
+    //             removedCts.Dispose();
+    //         }
+    //     }
+    // }
     
 }

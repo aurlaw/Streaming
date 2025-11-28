@@ -4,6 +4,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DataGenetator", "DataGeneta
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FileStreamDemo", "FileStreamDemo\FileStreamDemo.csproj", "{2A38DF54-A29A-4F6F-B028-2F7E839DDE01}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FileStreamDemo.Data", "FileStreamDemo.Data\FileStreamDemo.Data.csproj", "{17F14B45-CEC2-4A21-90F0-BD8CEFBD0B97}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -18,5 +20,9 @@ Global
 		{2A38DF54-A29A-4F6F-B028-2F7E839DDE01}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2A38DF54-A29A-4F6F-B028-2F7E839DDE01}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2A38DF54-A29A-4F6F-B028-2F7E839DDE01}.Release|Any CPU.Build.0 = Release|Any CPU
+		{17F14B45-CEC2-4A21-90F0-BD8CEFBD0B97}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{17F14B45-CEC2-4A21-90F0-BD8CEFBD0B97}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{17F14B45-CEC2-4A21-90F0-BD8CEFBD0B97}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{17F14B45-CEC2-4A21-90F0-BD8CEFBD0B97}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

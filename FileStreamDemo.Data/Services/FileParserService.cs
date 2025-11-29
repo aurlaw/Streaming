@@ -263,25 +263,23 @@ public class FileParserService
                 (stopwatch.Elapsed - lastProgressTime).TotalMilliseconds >= options.ProgressIntervalMs
             );
 
-            if (shouldYieldProgress)
+            if (!shouldYieldProgress) continue;
+            var percentComplete = fileSize > 0 
+                ? (double)filePosition / fileSize * 100 
+                : 0;
+
+            _logger.LogInformation("Progress: {RecordsProcessed} records ({PercentComplete:F2}%), Elapsed: {Elapsed}", 
+                totalRecords, percentComplete, stopwatch.Elapsed);
+
+            events.Add(new ProgressEvent
             {
-                var percentComplete = fileSize > 0 
-                    ? (double)filePosition / fileSize * 100 
-                    : 0;
+                RecordsProcessed = totalRecords,
+                PercentComplete = percentComplete,
+                Elapsed = stopwatch.Elapsed
+            });
 
-                _logger.LogInformation("Progress: {RecordsProcessed} records ({PercentComplete:F2}%), Elapsed: {Elapsed}", 
-                    totalRecords, percentComplete, stopwatch.Elapsed);
-
-                events.Add(new ProgressEvent
-                {
-                    RecordsProcessed = totalRecords,
-                    PercentComplete = percentComplete,
-                    Elapsed = stopwatch.Elapsed
-                });
-
-                lastProgressTime = stopwatch.Elapsed;
-                recordsSinceLastProgress = 0;
-            }
+            lastProgressTime = stopwatch.Elapsed;
+            recordsSinceLastProgress = 0;
         }
 
         return events;

@@ -9,12 +9,71 @@
     <div class="card mt-4">
         <div class="card-body">
             <h5 class="card-title">Parse people.txt</h5>
-            <div class="mb-3">
-                <label for="batchSize" class="form-label">Batch Size:</label>
-                <input type="number" id="batchSize" class="form-control" style="width: 150px;" 
-                       value="100" min="1" max="10000" />
-                <small class="form-text text-muted">Number of records to send per batch (1-10000)</small>
-            </div>            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="batchSize" class="form-label">Batch Size:</label>
+                        <input type="number" id="batchSize" class="form-control" 
+                               value="100" min="1" max="10000" />
+                        <small class="form-text text-muted">Number of records to process per batch (1-10000)</small>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="bufferSize" class="form-label">Buffer Size (bytes):</label>
+                        <input type="number" id="bufferSize" class="form-control" 
+                               value="8192" min="1024" max="65536" step="1024" />
+                        <small class="form-text text-muted">File read buffer size (1KB-64KB)</small>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="progressIntervalMs" class="form-label">Progress Interval (ms):</label>
+                        <input type="number" id="progressIntervalMs" class="form-control" 
+                               value="500" min="100" max="5000" step="100" />
+                        <small class="form-text text-muted">Minimum time between progress updates (100ms-5000ms)</small>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="progressRecordInterval" class="form-label">Progress Record Interval:</label>
+                        <input type="number" id="progressRecordInterval" class="form-control" 
+                               value="1000" min="100" max="10000" step="100" />
+                        <small class="form-text text-muted">Minimum records between progress updates (100-10000)</small>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="yieldBatchEvents" checked>
+                            <label class="form-check-label" for="yieldBatchEvents">
+                                Yield Batch Events
+                            </label>
+                            <small class="form-text text-muted d-block">Send actual parsed data (disable for performance testing)</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="yieldProgressEvents" checked>
+                            <label class="form-check-label" for="yieldProgressEvents">
+                                Yield Progress Events
+                            </label>
+                            <small class="form-text text-muted d-block">Send progress updates</small>
+                        </div>
+                    </div>
+                </div>
+            </div>           
             <button id="startBtn" class="btn btn-primary">Start Parsing</button>
             <button id="stopBtn" class="btn btn-danger" disabled>Stop</button>
         </div>
@@ -26,6 +85,7 @@
                 <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated" 
                      role="progressbar" style="width: 0%">
                     <span id="progressText">0 records</span>
+                    <strong>Elapsed:</strong> <span id="elapsed">0s</span>
                 </div>
             </div>
             <p class="mt-2">
@@ -108,15 +168,30 @@
             progressText.textContent = count.toLocaleString() + " records";
         });
 
-        connection.on("StreamCompleted", function(totalCount) {
+        connection.on("StreamCompleted", function(totalCount, duration) {
             document.getElementById("status").textContent = "Completed";
             document.getElementById("progressBar").classList.remove("progress-bar-animated");
             document.getElementById("startBtn").disabled = false;
             document.getElementById("stopBtn").disabled = true;
-            
-            console.log(`Completed: ${totalCount} records processed`);
-            showMessage(`Processing complete! ${totalCount.toLocaleString()} records loaded.`, false);
-            
+
+            const seconds = (duration / 1000).toFixed(2);
+            document.getElementById("elapsed").textContent = seconds + "s";
+
+            console.log(`Completed: ${totalCount} records processed in ${seconds}s`);
+            showMessage(`Processing complete!\n${totalCount.toLocaleString()} records loaded in ${seconds} seconds.`, false);
+        });
+
+        connection.on("ProgressEvent", function(count, elapsed) {
+            const percentage = Math.min((count / expectedTotal) * 100, 100);
+            const progressBar = document.getElementById("progressBar");
+            const progressText = document.getElementById("progressText");
+
+            progressBar.style.width = percentage + "%";
+            progressText.textContent = count.toLocaleString() + " records";
+
+            // Update elapsed time display
+            const seconds = (elapsed / 1000).toFixed(1);
+            document.getElementById("elapsed").textContent = seconds + "s";
         });
         connection.on("StreamCancelled", function(totalCount) {
             document.getElementById("status").textContent = "Cancelled";
@@ -130,6 +205,11 @@
         connection.on("StopRequested", function() {
             document.getElementById("status").textContent = "Stopping...";
         });
+        // Add this handler with the other connection.on handlers in Index.cshtml
+        connection.on("ParseError", function(error) {
+            console.warn(`Parse error on line ${error.lineNumber}: ${error.message}`);
+            // Optionally show these in the UI or just log them
+        });        
         connection.on("Error", function(message) {
             document.getElementById("status").textContent = "Error: " + message;
             document.getElementById("startBtn").disabled = false;
@@ -147,37 +227,72 @@
                 showMessage("Failed to connect to SignalR", true);
             });
 
-        document.getElementById("startBtn").addEventListener("click", async function() {
-            totalRecords = 0;
-            document.getElementById("dataTable").innerHTML = "";
-            document.getElementById("recordCount").textContent = "0";
-            document.getElementById("progressBar").style.width = "0%";
-            document.getElementById("progressText").textContent = "0 records";
-            document.getElementById("progressBar").classList.add("progress-bar-animated");
-            
-            this.disabled = true;
-            document.getElementById("stopBtn").disabled = false;
-            document.getElementById("status").textContent = "Starting...";
-
-            try {
-                // Get the batch size from the input
-                const batchSize = parseInt(document.getElementById("batchSize").value) || 100;
-                console.log("Batch size:", batchSize);  
-                // Validate batch size
-                if (batchSize < 1 || batchSize > 10000) {
-                    showMessage("Batch size must be between 1 and 10000", true);
+            document.getElementById("startBtn").addEventListener("click", async function() {
+                totalRecords = 0;
+                document.getElementById("dataTable").innerHTML = "";
+                document.getElementById("recordCount").textContent = "0";
+                document.getElementById("progressBar").style.width = "0%";
+                document.getElementById("progressText").textContent = "0 records";
+                document.getElementById("progressBar").classList.add("progress-bar-animated");
+    
+                this.disabled = true;
+                document.getElementById("stopBtn").disabled = false;
+                document.getElementById("status").textContent = "Starting...";
+    
+                try {
+                    // Collect all configuration values
+                    const batchSize = parseInt(document.getElementById("batchSize").value) || 100;
+                    const bufferSize = parseInt(document.getElementById("bufferSize").value) || 8192;
+                    const progressIntervalMs = parseInt(document.getElementById("progressIntervalMs").value) || 500;
+                    const progressRecordInterval = parseInt(document.getElementById("progressRecordInterval").value) || 1000;
+                    const yieldBatchEvents = document.getElementById("yieldBatchEvents").checked;
+                    const yieldProgressEvents = document.getElementById("yieldProgressEvents").checked;
+    
+                    // Validate values
+                    if (batchSize < 1 || batchSize > 10000) {
+                        showMessage("Batch size must be between 1 and 10000", true);
+                        this.disabled = false;
+                        document.getElementById("stopBtn").disabled = true;
+                        return;
+                    }
+    
+                    if (bufferSize < 1024 || bufferSize > 65536) {
+                        showMessage("Buffer size must be between 1024 and 65536 bytes", true);
+                        this.disabled = false;
+                        document.getElementById("stopBtn").disabled = true;
+                        return;
+                    }
+    
+                    if (progressIntervalMs < 100 || progressIntervalMs > 5000) {
+                        showMessage("Progress interval must be between 100 and 5000 ms", true);
+                        this.disabled = false;
+                        document.getElementById("stopBtn").disabled = true;
+                        return;
+                    }
+    
+                    if (progressRecordInterval < 100 || progressRecordInterval > 10000) {
+                        showMessage("Progress record interval must be between 100 and 10000", true);
+                        this.disabled = false;
+                        document.getElementById("stopBtn").disabled = true;
+                        return;
+                    }
+    
+                    // Send all options to the hub
+                    await connection.invoke("StartParsing", {
+                        batchSize: batchSize,
+                        bufferSize: bufferSize,
+                        progressIntervalMs: progressIntervalMs,
+                        progressRecordInterval: progressRecordInterval,
+                        yieldBatchEvents: yieldBatchEvents,
+                        yieldProgressEvents: yieldProgressEvents
+                    });
+                } catch (error) {
+                    console.error("Error starting parsing:", error);
+                    showMessage("Failed to start parsing: " + error.message, true);
                     this.disabled = false;
                     document.getElementById("stopBtn").disabled = true;
-                    return;
                 }
-                await connection.invoke("StartParsing", batchSize);
-            } catch (error) {
-                console.error("Error starting parsing:", error);
-                showMessage("Failed to start parsing: " + error.message, true);
-                this.disabled = false;
-                document.getElementById("stopBtn").disabled = true;
-            }
-        });
+            });        
 
         document.getElementById("stopBtn").addEventListener("click", async function() {
             this.disabled = true;

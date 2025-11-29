@@ -2,18 +2,21 @@ using System.Buffers;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text;
+using FileStreamDemo.Data.Interfaces;
 using FileStreamDemo.Data.Models;
 using Microsoft.Extensions.Logging;
 
 namespace FileStreamDemo.Data.Services;
 
-public class FileParserService
+public class FileParserService<T>
 {
-    private readonly ILogger<FileParserService> _logger;
+    private readonly ILogger<FileParserService<T>> _logger;
+    private readonly IRecordParser<T> _parser;
 
-    public FileParserService(ILogger<FileParserService> logger)
+    public FileParserService(ILogger<FileParserService<T>> logger, IRecordParser<T> parser)
     {
         _logger = logger;
+        _parser = parser;
     }
     
     public async IAsyncEnumerable<ParserEvent> ParseFileAsync(
@@ -38,25 +41,16 @@ public class FileParserService
             yield break;
         }
 
-        // Call the internal method that does the actual work
-        await foreach (var evt in ParseFileInternalAsync(filePath, cancellationToken, options))
-        {
-            yield return evt;
-        }
-    }
-
-    private async IAsyncEnumerable<ParserEvent> ParseFileInternalAsync(
-        string filePath,
-        [EnumeratorCancellation] CancellationToken cancellationToken,
-        ParserOptions options)
-    {
         var stopwatch = Stopwatch.StartNew();
-        var lastProgressTime = stopwatch.Elapsed;
-        var recordsSinceLastProgress = 0;
-        var totalRecords = 0;
-        var errorCount = 0;
-        var lineNumber = 0;
-        var currentBatch = new List<Person>(options.BatchSize);
+        var state = new ProcessingState
+        {
+            LineNumber = 0,
+            TotalRecords = 0,
+            ErrorCount = 0,
+            RecordsSinceLastProgress = 0,
+            LastProgressTime = stopwatch.Elapsed
+        };
+        var currentBatch = new List<T>(options.BatchSize);
 
         var buffer = ArrayPool<byte>.Shared.Rent(options.BufferSize);
         var leftoverBytes = new List<byte>();
@@ -91,40 +85,38 @@ public class FileParserService
                     if (leftoverBytes.Count > 0)
                     {
                         _logger.LogDebug("Processing {Count} leftover bytes", leftoverBytes.Count);
-                        lineNumber++;
-                        var parseResult = TryParseLine(leftoverBytes.ToArray(), lineNumber);
-        
-                        if (parseResult.Person != null)
+                        state.LineNumber++;
+                        var parseResult = await _parser.TryParseAsync(leftoverBytes.ToArray(), state.LineNumber, cancellationToken);
+    
+                        if (parseResult.Record != null)
                         {
-                            currentBatch.Add(parseResult.Person);
-                            totalRecords++;
-                            recordsSinceLastProgress++;
+                            currentBatch.Add(parseResult.Record);
+                            state.TotalRecords++;
+                            state.RecordsSinceLastProgress++;
                         }
                         else if (parseResult.Error != null)
                         {
-                            errorCount++;
+                            state.ErrorCount++;
                             yield return parseResult.Error;
-                        }                    }
-                    
+                        }
+                    }
                     break;
                 }
 
                 _logger.LogTrace("Read {BytesRead} bytes from file at position {Position}", 
                     bytesRead, fileStream.Position);
 
-                var eventsToYield = ProcessChunk(
-                    buffer.AsSpan(0, bytesRead),
+                var eventsToYield = await ProcessChunkAsync(
+                    buffer,
+                    bytesRead,
                     leftoverBytes,
                     currentBatch,
-                    ref lineNumber,
-                    ref totalRecords,
-                    ref errorCount,
-                    ref recordsSinceLastProgress,
-                    ref lastProgressTime,
+                    state,
                     stopwatch,
                     fileStream.Position,
                     fileSize,
-                    options);
+                    options,
+                    cancellationToken);
 
                 foreach (var evt in eventsToYield)
                 {
@@ -139,67 +131,70 @@ public class FileParserService
             _logger.LogDebug("Returned buffer to ArrayPool");
         }
 
-        // These yields are outside the try block
+        // Yield final batch
         if (options.YieldBatchEvents && currentBatch.Count > 0)
         {
             _logger.LogDebug("Yielding final batch of {BatchSize} records", currentBatch.Count);
             
-            yield return new BatchParsedEvent
+            yield return new BatchParsedEvent<T>
             {
-                People = currentBatch,
-                TotalProcessedSoFar = totalRecords
+                Records = currentBatch,
+                TotalProcessedSoFar = state.TotalRecords
             };
         }
 
         stopwatch.Stop();
         
         _logger.LogInformation("Parsing completed. Total records: {TotalRecords}, Errors: {ErrorCount}, Duration: {Duration}", 
-            totalRecords, errorCount, stopwatch.Elapsed);
+            state.TotalRecords, state.ErrorCount, stopwatch.Elapsed);
 
         yield return new CompletionEvent
         {
-            TotalRecords = totalRecords,
+            TotalRecords = state.TotalRecords,
             Duration = stopwatch.Elapsed,
-            ErrorCount = errorCount
+            ErrorCount = state.ErrorCount,
         };
-    }    
+    }
     
-    private List<ParserEvent> ProcessChunk(
-        ReadOnlySpan<byte> chunkData,
+    private async Task<List<ParserEvent>> ProcessChunkAsync(
+        byte[] chunkData,
+        int chunkLength,
         List<byte> leftoverBytes,
-        List<Person> currentBatch,
-        ref int lineNumber,
-        ref int totalRecords,
-        ref int errorCount,
-        ref int recordsSinceLastProgress,
-        ref TimeSpan lastProgressTime,
+        List<T> currentBatch,
+        ProcessingState state,
         Stopwatch stopwatch,
         long filePosition,
         long fileSize,
-        ParserOptions options)
+        ParserOptions options,
+        CancellationToken cancellationToken)
     {
         var events = new List<ParserEvent>();
         
         // Combine leftover bytes from previous read with new bytes
-        ReadOnlySpan<byte> dataSpan;
+        byte[] dataBuffer;
+        int dataLength;
 
         if (leftoverBytes.Count > 0)
         {
             _logger.LogTrace("Combining {LeftoverCount} leftover bytes with {NewBytes} new bytes", 
-                leftoverBytes.Count, chunkData.Length);
+                leftoverBytes.Count, chunkLength);
             
-            var combinedBuffer = new byte[leftoverBytes.Count + chunkData.Length];
-            leftoverBytes.CopyTo(combinedBuffer);
-            chunkData.CopyTo(combinedBuffer.AsSpan(leftoverBytes.Count));
-            dataSpan = combinedBuffer;
+            dataBuffer = new byte[leftoverBytes.Count + chunkLength];
+            leftoverBytes.CopyTo(dataBuffer);
+            Array.Copy(chunkData, 0, dataBuffer, leftoverBytes.Count, chunkLength);
+            dataLength = dataBuffer.Length;
             leftoverBytes.Clear();
         }
         else
         {
-            dataSpan = chunkData;
+            dataBuffer = chunkData;
+            dataLength = chunkLength;
         }
 
-        // Process complete lines in this chunk
+        // Extract all lines first (synchronous, no await)
+        var linesToParse = new List<(byte[] LineData, int LineNumber)>();
+        ReadOnlySpan<byte> dataSpan = dataBuffer.AsSpan(0, dataLength);
+
         while (dataSpan.Length > 0)
         {
             var newlineIndex = dataSpan.IndexOf((byte)'\n');
@@ -226,122 +221,79 @@ public class FileParserService
             if (lineSpan.Length == 0)
                 continue; // Skip empty lines
 
-            lineNumber++;
-
-            // Parse the line using spans
-            var parseResult = TryParseLine(lineSpan, lineNumber);
+            state.LineNumber++;
             
-            if (parseResult.Person != null)
+            // Copy line to array for async processing
+            linesToParse.Add((lineSpan.ToArray(), state.LineNumber));
+        }
+
+        // Now parse all lines (can await here, no spans in scope)
+        foreach (var (lineData, lineNum) in linesToParse)
+        {
+            var parseResult = await _parser.TryParseAsync(lineData, lineNum, cancellationToken);
+            
+            if (parseResult.Record != null)
             {
-                currentBatch.Add(parseResult.Person);
-                totalRecords++;
-                recordsSinceLastProgress++;
+                currentBatch.Add(parseResult.Record);
+                state.TotalRecords++;
+                state.RecordsSinceLastProgress++;
 
                 // Yield batch if we've reached batch size
                 if (options.YieldBatchEvents && currentBatch.Count >= options.BatchSize)
                 {
                     _logger.LogDebug("Yielding batch of {BatchSize} records. Total so far: {TotalRecords}", 
-                        currentBatch.Count, totalRecords);
+                        currentBatch.Count, state.TotalRecords);
                     
-                    events.Add(new BatchParsedEvent
+                    events.Add(new BatchParsedEvent<T>
                     {
-                        People = new List<Person>(currentBatch),
-                        TotalProcessedSoFar = totalRecords
+                        Records = new List<T>(currentBatch),
+                        TotalProcessedSoFar = state.TotalRecords
                     });
                     currentBatch.Clear();
                 }
             }
             else if (parseResult.Error != null)
             {
-                errorCount++;
+                state.ErrorCount++;
                 events.Add(parseResult.Error);
             }
 
             // Check if we should yield a progress event
             var shouldYieldProgress = options.YieldProgressEvents && (
-                recordsSinceLastProgress >= options.ProgressRecordInterval ||
-                (stopwatch.Elapsed - lastProgressTime).TotalMilliseconds >= options.ProgressIntervalMs
+                state.RecordsSinceLastProgress >= options.ProgressRecordInterval ||
+                (stopwatch.Elapsed - state.LastProgressTime).TotalMilliseconds >= options.ProgressIntervalMs
             );
 
-            if (!shouldYieldProgress) continue;
-            var percentComplete = fileSize > 0 
-                ? (double)filePosition / fileSize * 100 
-                : 0;
-
-            _logger.LogInformation("Progress: {RecordsProcessed} records ({PercentComplete:F2}%), Elapsed: {Elapsed}", 
-                totalRecords, percentComplete, stopwatch.Elapsed);
-
-            events.Add(new ProgressEvent
+            if (shouldYieldProgress)
             {
-                RecordsProcessed = totalRecords,
-                PercentComplete = percentComplete,
-                Elapsed = stopwatch.Elapsed
-            });
+                var percentComplete = fileSize > 0 
+                    ? (double)filePosition / fileSize * 100 
+                    : 0;
 
-            lastProgressTime = stopwatch.Elapsed;
-            recordsSinceLastProgress = 0;
+                _logger.LogInformation("Progress: {RecordsProcessed} records ({PercentComplete:F2}%), Elapsed: {Elapsed}", 
+                    state.TotalRecords, percentComplete, stopwatch.Elapsed);
+
+                events.Add(new ProgressEvent
+                {
+                    RecordsProcessed = state.TotalRecords,
+                    PercentComplete = percentComplete,
+                    Elapsed = stopwatch.Elapsed
+                });
+
+                state.LastProgressTime = stopwatch.Elapsed;
+                state.RecordsSinceLastProgress = 0;
+            }
         }
 
         return events;
     }
-        
-    private (Person? Person, ErrorEvent? Error) TryParseLine(ReadOnlySpan<byte> line, int lineNumber)
+    
+    private class ProcessingState
     {
-        try
-        {
-            var person = ParsePersonFromLine(line);
-            return (person, null);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to parse line {LineNumber}: {LineContent}", 
-                lineNumber, Encoding.UTF8.GetString(line));
-        
-            return (null, new ErrorEvent
-            {
-                Message = $"Failed to parse line {lineNumber}: {ex.Message}",
-                LineNumber = lineNumber,
-                Exception = ex
-            });
-        }
+        public int LineNumber { get; set; }
+        public int TotalRecords { get; set; }
+        public int ErrorCount { get; set; }
+        public int RecordsSinceLastProgress { get; set; }
+        public TimeSpan LastProgressTime { get; set; }
     }
-
-    private Person ParsePersonFromLine(ReadOnlySpan<byte> line)
-    {
-        // Find first comma
-        var firstComma = line.IndexOf((byte)',');
-        if (firstComma < 0) 
-            throw new FormatException("Invalid line format - missing first comma");
-
-        // Extract first name
-        var firstNameBytes = line.Slice(0, firstComma);
-        var firstName = Encoding.UTF8.GetString(firstNameBytes);
-
-        // Move past first comma
-        line = line.Slice(firstComma + 1);
-
-        // Find second comma
-        var secondComma = line.IndexOf((byte)',');
-        if (secondComma < 0) 
-            throw new FormatException("Invalid line format - missing second comma");
-
-        // Extract last name
-        var lastNameBytes = line.Slice(0, secondComma);
-        var lastName = Encoding.UTF8.GetString(lastNameBytes);
-
-        // Extract date (remaining part)
-        var dateBytes = line.Slice(secondComma + 1);
-        var dateString = Encoding.UTF8.GetString(dateBytes);
-
-        if (!DateOnly.TryParse(dateString, out var birthDate))
-            throw new FormatException("Invalid date format");
-
-        return new Person
-        {
-            FirstName = firstName,
-            LastName = lastName,
-            BirthDate = birthDate
-        };
-    }
-     
 }

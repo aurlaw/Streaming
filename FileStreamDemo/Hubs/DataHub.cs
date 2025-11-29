@@ -8,7 +8,7 @@ namespace FileStreamDemo.Hubs;
 public class DataHub : Hub
 {
     private readonly ILogger<DataHub> _logger;
-    private readonly FileParserService _fileParserService;
+    private readonly FileParserService<Person> _fileParserService;
     private readonly IConfiguration _configuration;
     private readonly IHubContext<DataHub> _hubContext;
 
@@ -16,7 +16,7 @@ public class DataHub : Hub
     private static readonly ConcurrentDictionary<string, CancellationTokenSource> _cancellationTokens = new();
 
 
-    public DataHub(ILogger<DataHub> logger, IConfiguration configuration, FileParserService fileParserService, IHubContext<DataHub> hubContext)
+    public DataHub(ILogger<DataHub> logger, IConfiguration configuration, FileParserService<Person> fileParserService, IHubContext<DataHub> hubContext)
     {
         _logger = logger;
         _configuration = configuration;
@@ -74,8 +74,8 @@ public class DataHub : Hub
             {
                 switch (evt)
                 {
-                    case BatchParsedEvent batch:
-                        await _hubContext.Clients.Client(connectionId).SendAsync("ReceiveBatch", batch.People);
+                    case BatchParsedEvent<Person> batch:
+                        await _hubContext.Clients.Client(connectionId).SendAsync("ReceiveBatch", batch.Records);
                         break;                    
                     case ProgressEvent progress:
                         await _hubContext.Clients.Client(connectionId).SendAsync("Progress", 

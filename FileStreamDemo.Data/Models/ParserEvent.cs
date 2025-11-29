@@ -5,9 +5,9 @@ public abstract class ParserEvent
     public DateTime Timestamp { get; set; } = DateTime.UtcNow;
 }
 
-public class BatchParsedEvent : ParserEvent
+public class BatchParsedEvent<T> : ParserEvent
 {
-    public List<Person> People { get; set; } = new();
+    public List<T> Records { get; set; } = new();
     public int TotalProcessedSoFar { get; set; }
 }
 

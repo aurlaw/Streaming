@@ -1,3 +1,6 @@
+using FileStreamDemo.Data.Interfaces;
+using FileStreamDemo.Data.Models;
+using FileStreamDemo.Data.Parsers;
 using FileStreamDemo.Data.Services;
 using FileStreamDemo.Hubs;
 
@@ -6,7 +9,10 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddControllersWithViews();
 builder.Services.AddSignalR();
-builder.Services.AddScoped<FileParserService>();
+
+builder.Services.AddScoped<IRecordParser<Person>, PersonParser>();
+builder.Services.AddScoped<FileParserService<Person>>();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.

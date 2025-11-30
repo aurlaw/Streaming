@@ -1,6 +1,9 @@
 ﻿// See https://aka.ms/new-console-template for more information
 
 
+using System.Diagnostics;
+using BenchmarkDotNet.Running;
+using CustomerDemo.Benchmarks;
 using CustomerDemo.Models;
 using CustomerDemo.Serialization;
 
@@ -16,27 +19,89 @@ var choice = Console.ReadLine();
 switch (choice)
 {
     case "1":
-        Console.WriteLine("Run Demo");
+        RunDemo();
         break;
     case "2":
-        Console.WriteLine("Run Performance Comparison");
+        RunPerformanceComparison();
         break;
     case "3":
-        Console.WriteLine("Run BenchmarkDotNet (detailed benchmarks)");
+        BenchmarkRunner.Run<FileSerializationBenchmarks>();
         break;
     case "4":
         return;
     default:
         Console.WriteLine("Invalid option");
-        break;
-}
+        break;}
 
-var data = CreateSampleData();
-Console.WriteLine(data.Count);
 
 Console.WriteLine("\nPress any key to exit...");
 Console.ReadKey();
 
+
+static void RunDemo()
+    {
+        var customers = CreateSampleData();
+
+        Console.WriteLine("\n### REFLECTION APPROACH ###");
+        var reflectionSerializer = new ReflectionFileSerializer();
+        var reflectionOutput = reflectionSerializer.Serialize(customers);
+        Console.WriteLine(reflectionOutput);
+        Console.WriteLine(new string('=', 80));
+        Console.WriteLine();
+
+        Console.WriteLine("### SOURCE GENERATOR APPROACH ###");
+        var generatedSerializer = new GeneratedFileSerializer();
+        var generatedOutput = generatedSerializer.Serialize(customers);
+        Console.WriteLine(generatedOutput);
+        Console.WriteLine(new string('=', 80));
+        Console.WriteLine();
+
+        if (reflectionOutput == generatedOutput)
+        {
+            Console.WriteLine("✓ Outputs match perfectly!");
+        }
+        else
+        {
+            Console.WriteLine("✗ Outputs differ!");
+        }
+    }
+
+    static void RunPerformanceComparison()
+    {
+        Console.WriteLine("\n=== Performance Comparison ===");
+        var customers = CreateSampleData();
+        const int iterations = 10_000;
+
+        var reflectionSerializer = new ReflectionFileSerializer();
+        var generatedSerializer = new GeneratedFileSerializer();
+
+        // Warm up
+        _ = reflectionSerializer.Serialize(customers);
+        _ = generatedSerializer.Serialize(customers);
+
+        // Test reflection
+        var sw = Stopwatch.StartNew();
+        for (int i = 0; i < iterations; i++)
+        {
+            _ = reflectionSerializer.Serialize(customers);
+        }
+        sw.Stop();
+        var reflectionTime = sw.Elapsed.TotalMilliseconds;
+
+        // Test source generator
+        sw.Restart();
+        for (int i = 0; i < iterations; i++)
+        {
+            _ = generatedSerializer.Serialize(customers);
+        }
+        sw.Stop();
+        var generatorTime = sw.Elapsed.TotalMilliseconds;
+
+        Console.WriteLine($"Reflection approach:        {reflectionTime,8:F2}ms ({iterations:N0} iterations)");
+        Console.WriteLine($"Source generator approach:  {generatorTime,8:F2}ms ({iterations:N0} iterations)");
+        Console.WriteLine($"Speed improvement:          {reflectionTime / generatorTime,8:F2}x faster");
+        Console.WriteLine($"Time saved per call:        {(reflectionTime - generatorTime) / iterations * 1000,8:F4}μs");
+    }
 
 // Program.cs - Update CreateSampleData method
 static List<Customer> CreateSampleData()

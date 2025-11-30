@@ -11,6 +11,7 @@
       <ProjectReference Include="..\CustomerDemo.SourceGenerator\CustomerDemo.SourceGenerator.csproj" 
                         OutputItemType="Analyzer" 
                         ReferenceOutputAssembly="false" />
+      <ProjectReference Include="..\Utility\Utility.csproj" />
     </ItemGroup>
 
     <ItemGroup>

@@ -1,63 +1,132 @@
 ﻿using System;
 using System.IO;
 using System.Text;
+using DataGenetator;
+using Utility;
 
-const int lineCount = 150_000;
-const string outputFile = "/Users/michaellawrence/Documents/dev/src/github.com/aurlaw/Benchmarks/Streaming/Shared/people.txt";
+Console.WriteLine("=== Data Generator ===\n");
+Console.WriteLine("1. Generate File");
+Console.WriteLine("2. Get User");
+Console.WriteLine("3. Exit");
+Console.Write("\nSelect an option: ");
 
-var firstNames = new[]
+var choice = Console.ReadLine();
+
+switch (choice)
 {
-    "James", "Mary", "John", "Patricia", "Robert", "Jennifer", "Michael", "Linda",
-    "William", "Barbara", "David", "Elizabeth", "Richard", "Susan", "Joseph", "Jessica",
-    "Thomas", "Sarah", "Charles", "Karen", "Christopher", "Nancy", "Daniel", "Lisa",
-    "Matthew", "Betty", "Anthony", "Margaret", "Mark", "Sandra", "Donald", "Ashley",
-    "Steven", "Kimberly", "Paul", "Emily", "Andrew", "Donna", "Joshua", "Michelle",
-    "Kenneth", "Dorothy", "Kevin", "Carol", "Brian", "Amanda", "George", "Melissa",
-    "Edward", "Deborah", "Ronald", "Stephanie", "Timothy", "Rebecca", "Jason", "Sharon",
-    "Jeffrey", "Laura", "Ryan", "Cynthia", "Jacob", "Kathleen", "Gary", "Amy",
-    "Nicholas", "Shirley", "Eric", "Angela", "Jonathan", "Helen", "Stephen", "Anna"
-};
+    case "1":
+        GenerateFile();
+        break;
+    case "2":
+        GetUser();
+        break;
+    case "3":
+        return;
+    default:
+        Console.WriteLine("Invalid option");
+        break;}
 
-var lastNames = new[]
+
+Console.WriteLine("\nPress any key to exit...");
+Console.ReadKey();
+
+
+
+static void GenerateFile()
 {
-    "Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis",
-    "Rodriguez", "Martinez", "Hernandez", "Lopez", "Gonzalez", "Wilson", "Anderson", "Thomas",
-    "Taylor", "Moore", "Jackson", "Martin", "Lee", "Perez", "Thompson", "White",
-    "Harris", "Sanchez", "Clark", "Ramirez", "Lewis", "Robinson", "Walker", "Young",
-    "Allen", "King", "Wright", "Scott", "Torres", "Nguyen", "Hill", "Flores",
-    "Green", "Adams", "Nelson", "Baker", "Hall", "Rivera", "Campbell", "Mitchell",
-    "Carter", "Roberts", "Gomez", "Phillips", "Evans", "Turner", "Diaz", "Parker",
-    "Cruz", "Edwards", "Collins", "Reyes", "Stewart", "Morris", "Morales", "Murphy",
-    "Cook", "Rogers", "Gutierrez", "Ortiz", "Morgan", "Cooper", "Peterson", "Bailey"
-};
-
-var random = new Random(42); // Seed for reproducibility
-
-Console.WriteLine($"Generating {lineCount:N0} lines...");
-
-using (var writer = new StreamWriter(outputFile, false, Encoding.UTF8))
-{
-    for (int i = 0; i < lineCount; i++)
-    {
-        var firstName = firstNames[random.Next(firstNames.Length)];
-        var lastName = lastNames[random.Next(lastNames.Length)];
-        
-        // Generate random birth date between 1940 and 2005
-        int year = random.Next(1940, 2006);
-        int month = random.Next(1, 13);
-        int day = random.Next(1, 29); // Keep it simple to avoid invalid dates
-        
-        writer.WriteLine($"{firstName},{lastName},{year:D4}-{month:D2}-{day:D2}");
-        
-        // Progress indicator
-        if ((i + 1) % 10000 == 0)
-        {
-            Console.WriteLine($"  Generated {i + 1:N0} lines...");
-        }
-    }
+    var generate = new GenerateFile();
+    generate.Run();
 }
-//
-// var fileInfo = new FileInfo(outputFile);
-// Console.WriteLine($"\nFile created: {outputFile}");
-// Console.WriteLine($"Size: {fileInfo.Length / 1024:N0} KB ({fileInfo.Length:N0} bytes)");
-// Console.WriteLine($"Lines: {lineCount:N0}");
+
+static void GetUser()
+{
+    var inputs = new[]
+    {
+        "11111111-1111-1111-1111-111111111111", // Valid active user
+        "22222222-2222-2222-2222-222222222222", // Valid but inactive
+        "99999999-9999-9999-9999-999999999999", // Not found
+        "invalid-guid",                          // Parse error
+        ""                                       // Empty
+    };
+    
+    foreach (var input in inputs)
+    {
+        Console.WriteLine($"Processing: '{input}'");
+        
+        // The beautiful part - chain operations, errors propagate automatically
+        var result = ParseUserId(input)
+            .Then(id => FetchUser(id))
+            .Then(user => ValidateUser(user))
+            .Map(user => user.Name);
+        
+        // Handle the result
+        var message = result switch
+        {
+            Result<string, Error>.Success(var name) => 
+                $"✓ Success: Welcome {name}!",
+            Result<string, Error>.Failure(Error.ValidationError(var msg)) => 
+                $"✗ Validation failed: {msg}",
+            Result<string, Error>.Failure(Error.NotFoundError(var msg)) => 
+                $"✗ Not found: {msg}",
+            Result<string, Error>.Failure(Error.DatabaseError(var msg)) => 
+                $"✗ Database error: {msg}",
+            _ => "✗ Unknown error"
+        };
+        
+        Console.WriteLine(message);
+    }    
+    
+}
+
+
+static Result<Guid, Error> ParseUserId(string input)
+{
+    if (string.IsNullOrWhiteSpace(input))
+        return new Result<Guid, Error>.Failure(
+            new Error.ValidationError("User ID cannot be empty"));
+    
+    if (!Guid.TryParse(input, out var id))
+        return new Result<Guid, Error>.Failure(
+            new Error.ValidationError($"'{input}' is not a valid user ID"));
+    
+    return new Result<Guid, Error>.Success(id);
+}
+
+static Result<User, Error> FetchUser(Guid userId)
+{
+    // Simulate database lookup
+    var users = new Dictionary<Guid, User>
+    {
+        [Guid.Parse("11111111-1111-1111-1111-111111111111")] = 
+            new User(
+                Guid.Parse("11111111-1111-1111-1111-111111111111"),
+                "John Doe",
+                "john@example.com",
+                true),
+        [Guid.Parse("22222222-2222-2222-2222-222222222222")] = 
+            new User(
+                Guid.Parse("22222222-2222-2222-2222-222222222222"),
+                "Jane Smith",
+                "jane@example.com",
+                false)
+    };
+    
+    if (users.TryGetValue(userId, out var user))
+        return new Result<User, Error>.Success(user);
+    
+    return new Result<User, Error>.Failure(
+        new Error.NotFoundError($"User with ID {userId} not found"));
+}
+
+static Result<User, Error> ValidateUser(User user)
+{
+    if (!user.IsActive)
+        return new Result<User, Error>.Failure(
+            new Error.ValidationError($"User '{user.Name}' is not active"));
+    
+    if (string.IsNullOrWhiteSpace(user.Email))
+        return new Result<User, Error>.Failure(
+            new Error.ValidationError($"User '{user.Name}' has no email"));
+    
+    return new Result<User, Error>.Success(user);
+}

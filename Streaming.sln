@@ -12,6 +12,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CustomerDemo.SourceGenerato
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Utility", "Utility\Utility.csproj", "{0EA334ED-F4E3-47EA-A1E2-DF0C347F66C1}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UserManagementApi", "UserManagementApi\UserManagementApi.csproj", "{58DD1920-48CB-4B4A-8A30-189829BD8E40}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -42,5 +44,9 @@ Global
 		{0EA334ED-F4E3-47EA-A1E2-DF0C347F66C1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{0EA334ED-F4E3-47EA-A1E2-DF0C347F66C1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{0EA334ED-F4E3-47EA-A1E2-DF0C347F66C1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{58DD1920-48CB-4B4A-8A30-189829BD8E40}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{58DD1920-48CB-4B4A-8A30-189829BD8E40}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{58DD1920-48CB-4B4A-8A30-189829BD8E40}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{58DD1920-48CB-4B4A-8A30-189829BD8E40}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

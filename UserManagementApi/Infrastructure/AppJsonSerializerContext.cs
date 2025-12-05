@@ -10,6 +10,10 @@ namespace UserManagementApi.Infrastructure;
 [JsonSerializable(typeof(User))]
 [JsonSerializable(typeof(UserResponse))]
 [JsonSerializable(typeof(CreateUserRequest))]
+[JsonSerializable(typeof(Product))]
+[JsonSerializable(typeof(ProductResponse))]
+[JsonSerializable(typeof(IEnumerable<Product>))]
+[JsonSerializable(typeof(IEnumerable<ProductResponse>))]
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 public partial class AppJsonSerializerContext : JsonSerializerContext
 {

@@ -1,3 +1,5 @@
+using Pgvector;
+
 namespace UserManagementApi.Domain;
 
 /// <summary>
@@ -16,4 +18,5 @@ public record Product
     public decimal? Rating { get; init; }
     public int ReviewCount { get; init; }
     public string Tags { get; init; } = string.Empty;
+    public Vector? Embedding { get; init; }
 }

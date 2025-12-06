@@ -5,6 +5,8 @@
 
 ## User Management API
 
+``docker-compose up -d``
+
 Supports AOT
 
 http://localhost:5190/scalar/v1

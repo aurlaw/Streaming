@@ -21,9 +21,11 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 });
 
 
-// Configure SQLite
+// Configure Postgres/pgvector
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlite("Data Source=management.db"));
+    options.UseNpgsql(
+        builder.Configuration.GetConnectionString("DefaultConnection"),
+        o => o.UseVector()));  // Enable pgvector support
 
 // Register ID encoder
 builder.Services.AddSingleton<IIdEncoder, IdEncoder>();

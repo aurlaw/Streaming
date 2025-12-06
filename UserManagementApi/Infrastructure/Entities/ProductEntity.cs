@@ -1,3 +1,6 @@
+
+using Pgvector;
+
 namespace UserManagementApi.Infrastructure.Entities;
 
 /// <summary>
@@ -16,4 +19,10 @@ public class ProductEntity
     public decimal? Rating { get; set; }
     public int ReviewCount { get; set; }
     public string Tags { get; set; } = string.Empty;
+    
+    /// <summary>
+    /// Vector embedding for semantic search (1024 dimensions for Claude embeddings).
+    /// Will be populated when AI services are integrated.
+    /// </summary>
+    public Vector? Embedding { get; set; }
 }

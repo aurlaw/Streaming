@@ -14,6 +14,9 @@ public class AppDbContext : DbContext
     
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        // Enable pgvector extension
+        modelBuilder.HasPostgresExtension("vector");        
+        
         modelBuilder.Entity<UserEntity>(entity =>
         {
             entity.HasKey(e => e.Id);
@@ -34,9 +37,15 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Rating).HasPrecision(3, 2);
             entity.Property(e => e.Tags).HasMaxLength(500);
             
+            // Configure vector column for embeddings
+            // 1024 dimensions is standard for Claude embeddings
+            entity.Property(e => e.Embedding)
+                .HasColumnType("vector(1024)");
+            
+            // Indexes for better query performance
             entity.HasIndex(e => e.Category);
             entity.HasIndex(e => e.Brand);
-            entity.HasIndex(e => e.IsActive);
+            entity.HasIndex(e => e.IsActive);            
         });        
     }
 }

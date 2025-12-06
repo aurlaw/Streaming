@@ -24,7 +24,8 @@ public static class ProductMapper
         IsActive = entity.IsActive,
         Rating = entity.Rating,
         ReviewCount = entity.ReviewCount,
-        Tags = entity.Tags
+        Tags = entity.Tags,
+        Embedding = entity.Embedding
     };
     
     /// <summary>
@@ -42,7 +43,8 @@ public static class ProductMapper
         IsActive = product.IsActive,
         Rating = product.Rating,
         ReviewCount = product.ReviewCount,
-        Tags = product.Tags
+        Tags = product.Tags,
+        Embedding = product.Embedding
     };
     
     /// <summary>

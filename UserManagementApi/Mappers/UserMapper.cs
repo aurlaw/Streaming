@@ -1,5 +1,6 @@
 using UserManagementApi.Domain;
 using UserManagementApi.DTOs;
+using UserManagementApi.Infrastructure;
 using UserManagementApi.Infrastructure.Entities;
 
 namespace UserManagementApi.Mappers;
@@ -36,10 +37,9 @@ public static class UserMapper
     /// <summary>
     /// Converts a domain model to an API response DTO.
     /// </summary>
-    public static UserResponse ToResponse(User user) => new(
-        user.Id,
-        user.Name,
-        user.Email,
-        user.IsActive
-    );
+    public static UserResponse ToResponse(User user, IIdEncoder encoder)
+    {
+        var encodedId = encoder.EncodeGuid(user.Id, EntityIds.User.Prefix);
+        return new UserResponse(encodedId, user.Name, user.Email, user.IsActive);
+    }
 }

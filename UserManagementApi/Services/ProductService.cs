@@ -11,11 +11,13 @@ public class ProductService
 {
     private readonly IProductRepository _repository;
     private readonly ILogger<ProductService> _logger;
+    private readonly IIdEncoder _encoder;
     
-    public ProductService(IProductRepository repository, ILogger<ProductService> logger)
+    public ProductService(IProductRepository repository, ILogger<ProductService> logger, IIdEncoder encoder)
     {
         _repository = repository;
         _logger = logger;
+        _encoder = encoder;
     }
     
     /// <summary>
@@ -25,6 +27,14 @@ public class ProductService
         await _repository.GetAllAsync()
             .LogSuccess(_logger, "Successfully fetched all products")
             .LogFailure(_logger, "Failed to fetch all products");
+    
+    /// <summary>
+    /// Retrieves a product by its encoded ID.
+    /// </summary>
+    public async Task<Result<Product, Error>> GetProductByEncodedIdAsync(string encodedId) =>
+        await _encoder.DecodeInt(encodedId, EntityIds.Product.Prefix)
+            .ToAsync()
+            .ThenAsync(id => GetProductByIdAsync(id));
     
     /// <summary>
     /// Retrieves a product by its ID.

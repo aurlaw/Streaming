@@ -25,6 +25,15 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite("Data Source=management.db"));
 
+// Register ID encoder
+builder.Services.AddSingleton<IIdEncoder, IdEncoder>();
+
+// // Configure model binding for encoded IDs
+// builder.Services.AddControllers(options =>
+// {
+//     options.ModelBinderProviders.Insert(0, new EncodedIdModelBinderProvider());
+// });
+
 // Register services
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<UserService>();
@@ -60,16 +69,16 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-
 // API Endpoints - Users
 var users = app.MapGroup("/api/users")
     .WithTags("Users")
     .WithOpenApi();
 
-users.MapGet("/{id:guid}", GetUserById)
+users.MapGet("/{encodedId}", GetUserById)
     .WithName("GetUserById")
     .WithSummary("Get a user by ID")
     .Produces<UserResponse>(200)
+    .Produces(400)
     .Produces(404);
 
 users.MapPost("/", CreateUser)
@@ -89,7 +98,7 @@ products.MapGet("/", GetAllProducts)
     .WithSummary("Get all products")
     .Produces<IEnumerable<ProductResponse>>(200);
 
-products.MapGet("/{id:int}", GetProductById)
+products.MapGet("/{encodedId}", GetProductById)
     .WithName("GetProductById")
     .WithSummary("Get a product by ID")
     .Produces<ProductResponse>(200)
@@ -99,17 +108,20 @@ products.MapGet("/{id:int}", GetProductById)
 app.Run();
 
 
+
 #region User Endpoints
 
-static async Task<IResult> GetUserById(Guid id, UserService userService)
+static async Task<IResult> GetUserById(string encodedId, UserService userService, IIdEncoder encoder)
 {
-    var result = await userService.GetUserByIdAsync(id)
-        .MapAsync(user => UserMapper.ToResponse(user));
+    var result = await userService.GetUserByEncodedIdAsync(encodedId)
+        .MapAsync(user => UserMapper.ToResponse(user, encoder));
     
     return result switch
     {
         Result<UserResponse, Error>.Success(var response) => 
             Results.Ok(response),
+        Result<UserResponse, Error>.Failure(Error.ValidationError(var msg)) =>
+            Results.BadRequest(new { error = msg }),
         Result<UserResponse, Error>.Failure(Error.NotFoundError(var msg)) => 
             Results.NotFound(new { error = msg }),
         Result<UserResponse, Error>.Failure(Error.DatabaseError(var msg)) => 
@@ -119,10 +131,10 @@ static async Task<IResult> GetUserById(Guid id, UserService userService)
 }
 
 
-static async Task<IResult> CreateUser(CreateUserRequest request, UserService userService)
+static async Task<IResult> CreateUser(CreateUserRequest request, UserService userService, IIdEncoder encoder)
 {
     var result = await userService.CreateUserAsync(request)
-        .MapAsync(user => UserMapper.ToResponse(user));
+        .MapAsync(user => UserMapper.ToResponse(user, encoder));
     
     return result switch
     {
@@ -143,10 +155,10 @@ static async Task<IResult> CreateUser(CreateUserRequest request, UserService use
 #region Product Endpoints
 
 
-static async Task<IResult> GetAllProducts(ProductService productService)
+static async Task<IResult> GetAllProducts(ProductService productService, IIdEncoder encoder)
 {
     var result = await productService.GetAllProductsAsync()
-        .MapAsync(products => products.Select(ProductMapper.ToResponse));
+        .MapAsync(products => products.Select(p => ProductMapper.ToResponse(p, encoder)));
     
     return result switch
     {
@@ -159,10 +171,10 @@ static async Task<IResult> GetAllProducts(ProductService productService)
 }
 
 
-static async Task<IResult> GetProductById(int id, ProductService productService)
+static async Task<IResult> GetProductById(string encodedId, ProductService productService, IIdEncoder encoder)
 {
-    var result = await productService.GetProductByIdAsync(id)
-        .MapAsync(product => ProductMapper.ToResponse(product));
+    var result = await productService.GetProductByEncodedIdAsync(encodedId)
+        .MapAsync(product => ProductMapper.ToResponse(product, encoder));
     
     return result switch
     {

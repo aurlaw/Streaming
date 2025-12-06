@@ -11,12 +11,22 @@ public class UserService
 {
     private readonly IUserRepository _repository;
     private readonly ILogger<UserService> _logger;
+    private readonly IIdEncoder _encoder;
     
-    public UserService(IUserRepository repository, ILogger<UserService> logger)
+    public UserService(IUserRepository repository, ILogger<UserService> logger, IIdEncoder encoder)
     {
         _repository = repository;
         _logger = logger;
+        _encoder = encoder;
     }
+    
+    /// <summary>
+    /// Retrieves a user by their encoded ID.
+    /// </summary>
+    public async Task<Result<User, Error>> GetUserByEncodedIdAsync(string encodedId) =>
+        await _encoder.DecodeGuid(encodedId, EntityIds.User.Prefix)
+            .ToAsync()
+            .ThenAsync(id => GetUserByIdAsync(id));
     
     /// <summary>
     /// Retrieves a user by their ID.

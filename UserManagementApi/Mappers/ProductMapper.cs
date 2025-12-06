@@ -1,5 +1,6 @@
 using UserManagementApi.Domain;
 using UserManagementApi.DTOs;
+using UserManagementApi.Infrastructure;
 using UserManagementApi.Infrastructure.Entities;
 
 namespace UserManagementApi.Mappers;
@@ -32,9 +33,9 @@ public static class ProductMapper
     /// <summary>
     /// Converts a domain model to an API response DTO.
     /// </summary>
-    public static ProductResponse ToResponse(Product product) => new(
-        product.Id,
-        product.Name,
-        product.Price
-    );
+    public static ProductResponse ToResponse(Product product, IIdEncoder encoder)
+    {
+        var encodedId = encoder.EncodeInt(product.Id, EntityIds.Product.Prefix);
+        return new ProductResponse(encodedId, product.Name, product.Price);
+    }
 }

@@ -50,4 +50,43 @@ public class ProductRepository : IProductRepository
                 new Error.DatabaseError($"Database error: {ex.Message}"));
         }
     }
+    
+    public async Task<Result<PagedResult<Product>, Error>> GetPagedAsync(int? afterId, int pageSize)
+    {
+        try
+        {
+            // Fetch pageSize + 1 to determine if there are more results
+            var query = _context.Products
+                .OrderBy(p => p.Id)
+                .AsQueryable();
+            
+            if (afterId.HasValue)
+            {
+                query = query.Where(p => p.Id > afterId.Value);
+            }
+            
+            var entities = await query
+                .Take(pageSize + 1)
+                .ToListAsync();
+            
+            var hasMore = entities.Count > pageSize;
+            var items = entities.Take(pageSize).Select(ProductMapper.ToDomain).ToList();
+            var nextId = hasMore ? entities[pageSize - 1].Id : (int?)null;
+            
+            var pagedResult = new PagedResult<Product>
+            {
+                Items = items,
+                NextId = nextId,
+                HasMore = hasMore
+            };
+            
+            return new Result<PagedResult<Product>, Error>.Success(pagedResult);
+        }
+        catch (Exception ex)
+        {
+            return new Result<PagedResult<Product>, Error>.Failure(
+                new Error.DatabaseError($"Database error: {ex.Message}"));
+        }
+    }
+    
 }

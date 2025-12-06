@@ -1,4 +1,5 @@
 using UserManagementApi.Domain;
+using UserManagementApi.DTOs;
 using UserManagementApi.Extensions;
 using UserManagementApi.Infrastructure;
 
@@ -29,6 +30,17 @@ public class ProductService
             .LogFailure(_logger, "Failed to fetch all products");
     
     /// <summary>
+    /// Retrieves a paginated list of products.
+    /// </summary>
+    public async Task<Result<PagedResult<Product>, Error>> GetPagedProductsAsync(GetProductsRequest request) =>
+        await ValidatePageSize(request.PageSize)
+            .Then(_ => DecodeCursor(request.Cursor))
+            .ToAsync()
+            .ThenAsync(afterId => _repository.GetPagedAsync(afterId, request.PageSize))
+            .LogSuccess(_logger, "Successfully fetched paged products")
+            .LogFailure(_logger, "Failed to fetch paged products");    
+    
+    /// <summary>
     /// Retrieves a product by its encoded ID.
     /// </summary>
     public async Task<Result<Product, Error>> GetProductByEncodedIdAsync(string encodedId) =>
@@ -54,4 +66,32 @@ public class ProductService
         
         return new Result<int, Error>.Success(id);
     }
+    private static Result<int, Error> ValidatePageSize(int pageSize)
+    {
+        if (pageSize < GetProductsRequest.MinPageSize)
+            return new Result<int, Error>.Failure(
+                new Error.ValidationError($"Page size must be at least {GetProductsRequest.MinPageSize}"));
+        
+        if (pageSize > GetProductsRequest.MaxPageSize)
+            return new Result<int, Error>.Failure(
+                new Error.ValidationError($"Page size cannot exceed {GetProductsRequest.MaxPageSize}"));
+        
+        return new Result<int, Error>.Success(pageSize);
+    }
+    
+    private Result<int?, Error> DecodeCursor(string? cursor)
+    {
+        if (string.IsNullOrWhiteSpace(cursor))
+            return new Result<int?, Error>.Success(null);
+        
+        var decodeResult = _encoder.DecodeInt(cursor, EntityIds.Product.Prefix);
+        
+#pragma warning disable CS8509 // The switch expression does not handle all possible values of its input type (it is not exhaustive).
+        return decodeResult switch
+#pragma warning restore CS8509 // The switch expression does not handle all possible values of its input type (it is not exhaustive).
+        {
+            Result<int, Error>.Success(var id) => new Result<int?, Error>.Success(id),
+            Result<int, Error>.Failure(var error) => new Result<int?, Error>.Failure(error)
+        };
+    }    
 }

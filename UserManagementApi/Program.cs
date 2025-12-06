@@ -93,10 +93,11 @@ var products = app.MapGroup("/api/products")
     .WithTags("Products")
     .WithOpenApi();
 
-products.MapGet("/", GetAllProducts)
-    .WithName("GetAllProducts")
-    .WithSummary("Get all products")
-    .Produces<IEnumerable<ProductResponse>>(200);
+products.MapGet("/", GetPagedProducts)
+    .WithName("GetPagedProducts")
+    .WithSummary("Get paginated products")
+    .Produces<PagedProductsResponse>(200)
+    .Produces(400);
 
 products.MapGet("/{encodedId}", GetProductById)
     .WithName("GetProductById")
@@ -154,21 +155,39 @@ static async Task<IResult> CreateUser(CreateUserRequest request, UserService use
 
 #region Product Endpoints
 
-
-static async Task<IResult> GetAllProducts(ProductService productService, IIdEncoder encoder)
+static async Task<IResult> GetPagedProducts(
+    [AsParameters] GetProductsRequest request,
+    ProductService productService,
+    IIdEncoder encoder)
 {
-    var result = await productService.GetAllProductsAsync()
-        .MapAsync(products => products.Select(p => ProductMapper.ToResponse(p, encoder)));
-    
+    var result = await productService.GetPagedProductsAsync(request);
     return result switch
     {
-        Result<IEnumerable<ProductResponse>, Error>.Success(var response) => 
-            Results.Ok(response),
-        Result<IEnumerable<ProductResponse>, Error>.Failure(Error.DatabaseError(var msg)) => 
+        Result<PagedResult<Product>, Error>.Success(var page) =>
+            MapPagedResponse(page, encoder),
+        Result<PagedResult<Product>, Error>.Failure(Error.ValidationError(var msg)) =>
+            Results.BadRequest(new { error = msg }),
+        Result<PagedResult<Product>, Error>.Failure(Error.DatabaseError(var msg)) =>
             Results.Problem(msg),
-        _ => Results.Problem("An unexpected error occurred")
-    };
+        _ => Results.Problem("An unexpected error occurred")    };    
+    
 }
+static IResult MapPagedResponse(PagedResult<Product> page, IIdEncoder encoder)
+{
+    var productResponses = page.Items.Select(p => ProductMapper.ToResponse(p, encoder));
+    var nextCursor = page.NextId.HasValue 
+        ? encoder.EncodeInt(page.NextId.Value, EntityIds.Product.Prefix)
+        : null;
+    
+    var response = new PagedProductsResponse(
+        productResponses,
+        nextCursor,
+        page.HasMore
+    );
+    
+    return Results.Ok(response);
+}
+
 
 
 static async Task<IResult> GetProductById(string encodedId, ProductService productService, IIdEncoder encoder)

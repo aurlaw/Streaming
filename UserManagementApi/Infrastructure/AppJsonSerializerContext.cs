@@ -12,6 +12,8 @@ namespace UserManagementApi.Infrastructure;
 [JsonSerializable(typeof(CreateUserRequest))]
 [JsonSerializable(typeof(Product))]
 [JsonSerializable(typeof(ProductResponse))]
+[JsonSerializable(typeof(PagedProductsResponse))]
+[JsonSerializable(typeof(GetProductsRequest))]
 [JsonSerializable(typeof(IEnumerable<Product>))]
 [JsonSerializable(typeof(IEnumerable<ProductResponse>))]
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]

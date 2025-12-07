@@ -1,7 +1,10 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.AI;
+using OpenAI;
 using Scalar.AspNetCore;
 using UserManagementApi.Domain;
 using UserManagementApi.DTOs;
+using UserManagementApi.Endpoints;
 using UserManagementApi.Extensions;
 using UserManagementApi.Infrastructure;
 using UserManagementApi.Infrastructure.Entities;
@@ -20,12 +23,42 @@ builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.TypeInfoResolverChain.Insert(0, AppJsonSerializerContext.Default);
 });
 
+// Configure options
+builder.Services.Configure<OpenAIOptions>(
+    builder.Configuration.GetSection(OpenAIOptions.SectionName));
 
 // Configure Postgres/pgvector
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(
         builder.Configuration.GetConnectionString("DefaultConnection"),
         o => o.UseVector()));  // Enable pgvector support
+
+// Get OpenAI API key from configuration
+var openAIApiKey = builder.Configuration["OpenAI:ApiKey"];
+if (string.IsNullOrWhiteSpace(openAIApiKey))
+{
+    throw new InvalidOperationException(
+        "OpenAI API key is not configured. Set it using: dotnet user-secrets set \"OpenAI:ApiKey\" \"your-key\"");
+}
+
+var openAIOptions = builder.Configuration
+    .GetSection(OpenAIOptions.SectionName)
+    .Get<OpenAIOptions>() ?? new OpenAIOptions();
+
+// Create OpenAI client
+var openAiClient = new OpenAIClient(openAIApiKey);
+
+// Register IChatClient for OpenAI (chat/reasoning)
+var chatClient = openAiClient.GetChatClient(openAIOptions.ChatModel);
+builder.Services.AddChatClient(chatClient.AsIChatClient())
+    .UseFunctionInvocation() // Enable function calling
+    .UseLogging() // Log all interactions
+    .UseDistributedCache();
+
+// Register IEmbeddingGenerator for OpenAI (embeddings)
+var embeddingClient = openAiClient.GetEmbeddingClient(openAIOptions.EmbeddingModel);
+builder.Services.AddEmbeddingGenerator(embeddingClient.AsIEmbeddingGenerator(openAIOptions.EmbeddingDimensions))
+    .UseLogging();
 
 // Register ID encoder
 builder.Services.AddSingleton<IIdEncoder, IdEncoder>();
@@ -41,6 +74,7 @@ builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
 builder.Services.AddScoped<ProductService>();
+builder.Services.AddScoped<IProductEmbeddingService, ProductEmbeddingService>();
 
 // Optional: Add caching
 builder.Services.AddDistributedMemoryCache();
@@ -71,153 +105,29 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-// API Endpoints - Users
-var users = app.MapGroup("/api/users")
+// Map endpoint groups
+app.MapGroup("/api/users")
     .WithTags("Users")
-    .WithOpenApi();
+    .WithOpenApi()
+    .MapUserEndpoints();
 
-users.MapGet("/{encodedId}", GetUserById)
-    .WithName("GetUserById")
-    .WithSummary("Get a user by ID")
-    .Produces<UserResponse>(200)
-    .Produces(400)
-    .Produces(404);
-
-users.MapPost("/", CreateUser)
-    .WithName("CreateUser")
-    .WithSummary("Create a new user")
-    .Produces<UserResponse>(201)
-    .Produces(400)
-    .Produces(409);
-
-// API Endpoints - Products
-var products = app.MapGroup("/api/products")
+app.MapGroup("/api/products")
     .WithTags("Products")
-    .WithOpenApi();
+    .WithOpenApi()
+    .MapProductEndpoints();
 
-products.MapGet("/", GetPagedProducts)
-    .WithName("GetPagedProducts")
-    .WithSummary("Get paginated products")
-    .Produces<PagedProductsResponse>(200)
-    .Produces(400);
+// Map development endpoints
+app.MapDevelopmentEndpoints();
 
-products.MapGet("/{encodedId}", GetProductById)
-    .WithName("GetProductById")
-    .WithSummary("Get a product by ID")
-    .Produces<ProductResponse>(200)
-    .Produces(400)
-    .Produces(404);
 
 app.Run();
 
 
 
-#region User Endpoints
-
-static async Task<IResult> GetUserById(string encodedId, UserService userService, IIdEncoder encoder)
-{
-    var result = await userService.GetUserByEncodedIdAsync(encodedId)
-        .MapAsync(user => UserMapper.ToResponse(user, encoder));
-    
-    return result switch
-    {
-        Result<UserResponse, Error>.Success(var response) => 
-            Results.Ok(response),
-        Result<UserResponse, Error>.Failure(Error.ValidationError(var msg)) =>
-            Results.BadRequest(new { error = msg }),
-        Result<UserResponse, Error>.Failure(Error.NotFoundError(var msg)) => 
-            Results.NotFound(new { error = msg }),
-        Result<UserResponse, Error>.Failure(Error.DatabaseError(var msg)) => 
-            Results.Problem(msg),
-        _ => Results.Problem("An unexpected error occurred")
-    };
-}
-
-
-static async Task<IResult> CreateUser(CreateUserRequest request, UserService userService, IIdEncoder encoder)
-{
-    var result = await userService.CreateUserAsync(request)
-        .MapAsync(user => UserMapper.ToResponse(user, encoder));
-    
-    return result switch
-    {
-        Result<UserResponse, Error>.Success(var response) => 
-            Results.Created($"/api/users/{response.Id}", response),
-        Result<UserResponse, Error>.Failure(Error.ValidationError(var msg)) => 
-            Results.BadRequest(new { error = msg }),
-        Result<UserResponse, Error>.Failure(Error.DuplicateError(var msg)) => 
-            Results.Conflict(new { error = msg }),
-        Result<UserResponse, Error>.Failure(Error.DatabaseError(var msg)) => 
-            Results.Problem(msg),
-        _ => Results.Problem("An unexpected error occurred")
-    };
-}
-
-#endregion
-
-#region Product Endpoints
-
-static async Task<IResult> GetPagedProducts(
-    [AsParameters] GetProductsRequest request,
-    ProductService productService,
-    IIdEncoder encoder)
-{
-    var result = await productService.GetPagedProductsAsync(request);
-    return result switch
-    {
-        Result<PagedResult<Product>, Error>.Success(var page) =>
-            MapPagedResponse(page, encoder),
-        Result<PagedResult<Product>, Error>.Failure(Error.ValidationError(var msg)) =>
-            Results.BadRequest(new { error = msg }),
-        Result<PagedResult<Product>, Error>.Failure(Error.DatabaseError(var msg)) =>
-            Results.Problem(msg),
-        _ => Results.Problem("An unexpected error occurred")    };    
-    
-}
-static IResult MapPagedResponse(PagedResult<Product> page, IIdEncoder encoder)
-{
-    var productResponses = page.Items.Select(p => ProductMapper.ToResponse(p, encoder));
-    var nextCursor = page.NextId.HasValue 
-        ? encoder.EncodeInt(page.NextId.Value, EntityIds.Product.Prefix)
-        : null;
-    
-    var response = new PagedProductsResponse(
-        productResponses,
-        nextCursor,
-        page.HasMore
-    );
-    
-    return Results.Ok(response);
-}
-
-
-
-static async Task<IResult> GetProductById(string encodedId, ProductService productService, IIdEncoder encoder)
-{
-    var result = await productService.GetProductByEncodedIdAsync(encodedId)
-        .MapAsync(product => ProductMapper.ToResponse(product, encoder));
-    
-    return result switch
-    {
-        Result<ProductResponse, Error>.Success(var response) => 
-            Results.Ok(response),
-        Result<ProductResponse, Error>.Failure(Error.ValidationError(var msg)) => 
-            Results.BadRequest(new { error = msg }),
-        Result<ProductResponse, Error>.Failure(Error.NotFoundError(var msg)) => 
-            Results.NotFound(new { error = msg }),
-        Result<ProductResponse, Error>.Failure(Error.DatabaseError(var msg)) => 
-            Results.Problem(msg),
-        _ => Results.Problem("An unexpected error occurred")
-    };
-}
-
-#endregion
 
 #region Seed Data
 
-/// <summary>
-/// Generates a list of sample products for seeding.
-/// </summary>
+
 static List<ProductEntity> GenerateProducts(int count)
 {
     var random = new Random(42); // Fixed seed for consistent data

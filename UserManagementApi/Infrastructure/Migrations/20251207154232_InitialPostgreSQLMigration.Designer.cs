@@ -13,7 +13,7 @@ using UserManagementApi.Infrastructure;
 namespace UserManagementApi.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20251206222314_InitialPostgreSQLMigration")]
+    [Migration("20251207154232_InitialPostgreSQLMigration")]
     partial class InitialPostgreSQLMigration
     {
         /// <inheritdoc />
@@ -51,7 +51,7 @@ namespace UserManagementApi.Infrastructure.Migrations
                         .HasColumnType("character varying(1000)");
 
                     b.Property<Vector>("Embedding")
-                        .HasColumnType("vector(1024)");
+                        .HasColumnType("vector(1536)");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");

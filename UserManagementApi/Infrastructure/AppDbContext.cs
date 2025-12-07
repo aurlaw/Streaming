@@ -37,10 +37,9 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Rating).HasPrecision(3, 2);
             entity.Property(e => e.Tags).HasMaxLength(500);
             
-            // Configure vector column for embeddings
-            // 1024 dimensions is standard for Claude embeddings
+            // Configure vector column for OpenAI embeddings (1536 dimensions)
             entity.Property(e => e.Embedding)
-                .HasColumnType("vector(1024)");
+                .HasColumnType("vector(1536)");
             
             // Indexes for better query performance
             entity.HasIndex(e => e.Category);

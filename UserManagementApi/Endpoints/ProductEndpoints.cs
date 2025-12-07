@@ -1,0 +1,92 @@
+using UserManagementApi.Domain;
+using UserManagementApi.DTOs;
+using UserManagementApi.Extensions;
+using UserManagementApi.Infrastructure;
+using UserManagementApi.Mappers;
+using UserManagementApi.Services;
+
+namespace UserManagementApi.Endpoints;
+
+/// <summary>
+/// Endpoints for product management and search operations.
+/// </summary>
+public static class ProductEndpoints
+{
+    public static RouteGroupBuilder MapProductEndpoints(this RouteGroupBuilder group)
+    {
+        group.MapGet("/", GetPagedProducts)
+            .WithName("GetPagedProducts")
+            .WithSummary("Get paginated products")
+            .Produces<PagedProductsResponse>(200)
+            .Produces(400);
+
+        group.MapGet("/{encodedId}", GetProductById)
+            .WithName("GetProductById")
+            .WithSummary("Get a product by ID")
+            .Produces<ProductResponse>(200)
+            .Produces(400)
+            .Produces(404);
+
+        return group;
+    }
+
+    /// <summary>
+    /// Retrieves paginated products.
+    /// </summary>
+    private static async Task<IResult> GetPagedProducts(
+        [AsParameters] GetProductsRequest request,
+        ProductService productService,
+        IIdEncoder encoder)
+    {
+        var result = await productService.GetPagedProductsAsync(request);
+        
+        return result switch
+        {
+            Result<PagedResult<Product>, Error>.Success(var page) =>
+                MapPagedResponse(page, encoder),
+            Result<PagedResult<Product>, Error>.Failure(Error.ValidationError(var msg)) =>
+                Results.BadRequest(new { error = msg }),
+            Result<PagedResult<Product>, Error>.Failure(Error.DatabaseError(var msg)) =>
+                Results.Problem(msg),
+            _ => Results.Problem("An unexpected error occurred")
+        };
+    }
+
+    private static IResult MapPagedResponse(PagedResult<Product> page, IIdEncoder encoder)
+    {
+        var productResponses = page.Items.Select(p => ProductMapper.ToResponse(p, encoder));
+        var nextCursor = page.NextId.HasValue 
+            ? encoder.EncodeInt(page.NextId.Value, EntityIds.Product.Prefix)
+            : null;
+        
+        var response = new PagedProductsResponse(
+            productResponses,
+            nextCursor,
+            page.HasMore
+        );
+        
+        return Results.Ok(response);
+    }
+
+    /// <summary>
+    /// Retrieves a product by its ID.
+    /// </summary>
+    private static async Task<IResult> GetProductById(string encodedId, ProductService productService, IIdEncoder encoder)
+    {
+        var result = await productService.GetProductByEncodedIdAsync(encodedId)
+            .MapAsync(product => ProductMapper.ToResponse(product, encoder));
+        
+        return result switch
+        {
+            Result<ProductResponse, Error>.Success(var response) => 
+                Results.Ok(response),
+            Result<ProductResponse, Error>.Failure(Error.ValidationError(var msg)) => 
+                Results.BadRequest(new { error = msg }),
+            Result<ProductResponse, Error>.Failure(Error.NotFoundError(var msg)) => 
+                Results.NotFound(new { error = msg }),
+            Result<ProductResponse, Error>.Failure(Error.DatabaseError(var msg)) => 
+                Results.Problem(msg),
+            _ => Results.Problem("An unexpected error occurred")
+        };
+    }
+}

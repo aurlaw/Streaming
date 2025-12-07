@@ -32,7 +32,7 @@ namespace UserManagementApi.Infrastructure.Migrations
                     Rating = table.Column<decimal>(type: "numeric(3,2)", precision: 3, scale: 2, nullable: true),
                     ReviewCount = table.Column<int>(type: "integer", nullable: false),
                     Tags = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: false),
-                    Embedding = table.Column<Vector>(type: "vector(1024)", nullable: true)
+                    Embedding = table.Column<Vector>(type: "vector(1536)", nullable: true)
                 },
                 constraints: table =>
                 {

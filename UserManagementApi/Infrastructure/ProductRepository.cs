@@ -230,5 +230,38 @@ public class ProductRepository : IProductRepository
                 new Error.DatabaseError($"Database error: {ex.Message}"));
         }
     }
-    
+
+    public async Task<Result<Product, Error>> UpdateAsync(Product product)
+    {
+        try
+        {
+            var entity = await _context.Products.FindAsync(product.Id);
+        
+            if (entity == null)
+                return new Result<Product, Error>.Failure(
+                    new Error.NotFoundError($"Product with ID {product.Id} not found"));
+        
+            // Update entity with product values
+            entity.Name = product.Name;
+            entity.Description = product.Description;
+            entity.Category = product.Category;
+            entity.Brand = product.Brand;
+            entity.Price = product.Price;
+            entity.Stock = product.Stock;
+            entity.IsActive = product.IsActive;
+            entity.Rating = product.Rating;
+            entity.ReviewCount = product.ReviewCount;
+            entity.Tags = product.Tags;
+            entity.Embedding = product.Embedding;
+        
+            await _context.SaveChangesAsync();
+        
+            return new Result<Product, Error>.Success(ProductMapper.ToDomain(entity));
+        }
+        catch (Exception ex)
+        {
+            return new Result<Product, Error>.Failure(
+                new Error.DatabaseError($"Database error: {ex.Message}"));
+        }
+    }
 }

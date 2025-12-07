@@ -78,6 +78,7 @@ builder.Services.AddScoped<IProductEmbeddingService, ProductEmbeddingService>();
 builder.Services.AddScoped<INaturalLanguageSearchService, NaturalLanguageSearchService>(); 
 builder.Services.AddScoped<IHybridSearchService, HybridSearchService>();
 builder.Services.AddSingleton<IPromptService, PromptService>();
+builder.Services.AddScoped<IProductTaggingService, ProductTaggingService>();
 
 // Optional: Add caching
 builder.Services.AddDistributedMemoryCache();
@@ -121,6 +122,8 @@ app.MapGroup("/api/products")
 
 // Map development endpoints
 app.MapDevelopmentEndpoints();
+
+app.MapProductTaggingEndpoints();
 
 
 app.Run();

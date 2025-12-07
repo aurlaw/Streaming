@@ -40,5 +40,9 @@ public interface IProductRepository
         ProductSearchFilters filters, 
         Vector queryEmbedding,
         int limit);
+    /// <summary>
+    /// Updates an existing product.
+    /// </summary>
+    Task<Result<Product, Error>> UpdateAsync(Product product);    
     
 }

@@ -81,12 +81,13 @@ public class PromptService : IPromptService
         return GetPromptAsync(promptPath).GetAwaiter().GetResult();
     }
     
-    public async Task ClearCacheAsync()
+    public Task ClearCacheAsync()
     {
         // Unfortunately IDistributedCache doesn't have a "clear all" method
         // You'd need to track keys or use a cache implementation that supports it
         // For now, we can provide a method to clear specific prompts
         _logger.LogWarning("Distributed cache doesn't support clearing all entries. Cache will expire naturally after {Expiration}", _cacheExpiration);
+        return Task.CompletedTask;
     }
     
     public async Task ClearPromptCacheAsync(string promptPath)

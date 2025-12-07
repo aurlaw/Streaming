@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using UserManagementApi.Domain;
 using UserManagementApi.DTOs;
+using UserManagementApi.Endpoints;
 
 namespace UserManagementApi.Infrastructure;
 
@@ -20,7 +21,10 @@ namespace UserManagementApi.Infrastructure;
 [JsonSerializable(typeof(IEnumerable<Product>))]
 [JsonSerializable(typeof(IEnumerable<ProductResponse>))]
 [JsonSerializable(typeof(HybridSearchRequest))]  
-[JsonSerializable(typeof(HybridSearchResponse))] 
+[JsonSerializable(typeof(HybridSearchResponse))]
+[JsonSerializable(typeof(TaggingResultResponse))]
+[JsonSerializable(typeof(TagGenerationResponse))]
+[JsonSerializable(typeof(List<string>))]
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 public partial class AppJsonSerializerContext : JsonSerializerContext
 {

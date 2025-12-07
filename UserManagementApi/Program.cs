@@ -75,6 +75,9 @@ builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
 builder.Services.AddScoped<ProductService>();
 builder.Services.AddScoped<IProductEmbeddingService, ProductEmbeddingService>();
+builder.Services.AddScoped<INaturalLanguageSearchService, NaturalLanguageSearchService>(); 
+builder.Services.AddScoped<IHybridSearchService, HybridSearchService>();
+builder.Services.AddSingleton<IPromptService, PromptService>();
 
 // Optional: Add caching
 builder.Services.AddDistributedMemoryCache();

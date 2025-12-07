@@ -14,8 +14,13 @@ namespace UserManagementApi.Infrastructure;
 [JsonSerializable(typeof(ProductResponse))]
 [JsonSerializable(typeof(PagedProductsResponse))]
 [JsonSerializable(typeof(GetProductsRequest))]
+[JsonSerializable(typeof(NaturalLanguageSearchRequest))] 
+[JsonSerializable(typeof(NaturalLanguageSearchResponse))]  
+[JsonSerializable(typeof(ProductSearchFilters))]  
 [JsonSerializable(typeof(IEnumerable<Product>))]
 [JsonSerializable(typeof(IEnumerable<ProductResponse>))]
+[JsonSerializable(typeof(HybridSearchRequest))]  
+[JsonSerializable(typeof(HybridSearchResponse))] 
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 public partial class AppJsonSerializerContext : JsonSerializerContext
 {

@@ -1,5 +1,8 @@
 using Microsoft.EntityFrameworkCore;
+using Pgvector;
+using Pgvector.EntityFrameworkCore;
 using UserManagementApi.Domain;
+using UserManagementApi.DTOs;
 using UserManagementApi.Mappers;
 
 namespace UserManagementApi.Infrastructure;
@@ -85,6 +88,145 @@ public class ProductRepository : IProductRepository
         catch (Exception ex)
         {
             return new Result<PagedResult<Product>, Error>.Failure(
+                new Error.DatabaseError($"Database error: {ex.Message}"));
+        }
+    }
+
+    public async Task<Result<IEnumerable<Product>, Error>> SearchWithFiltersAsync(
+        ProductSearchFilters filters, 
+        int limit)
+    {
+        try
+        {
+            var query = _context.Products
+                .Where(p => p.IsActive)
+                .AsQueryable();
+            
+            // Apply category filter
+            if (!string.IsNullOrWhiteSpace(filters.Category))
+            {
+                query = query.Where(p => p.Category == filters.Category);
+            }
+            
+            // Apply brand filter
+            if (!string.IsNullOrWhiteSpace(filters.Brand))
+            {
+                query = query.Where(p => p.Brand == filters.Brand);
+            }
+            
+            // Apply price filters
+            if (filters.MinPrice.HasValue)
+            {
+                query = query.Where(p => p.Price >= filters.MinPrice.Value);
+            }
+            
+            if (filters.MaxPrice.HasValue)
+            {
+                query = query.Where(p => p.Price <= filters.MaxPrice.Value);
+            }
+            
+            // Apply rating filter
+            if (filters.MinRating.HasValue)
+            {
+                query = query.Where(p => p.Rating >= filters.MinRating.Value);
+            }
+            
+            // Apply stock filter
+            if (filters.InStock.HasValue && filters.InStock.Value)
+            {
+                query = query.Where(p => p.Stock > 0);
+            }
+            
+            // Apply tag filters (any tag matches)
+            if (filters.Tags != null && filters.Tags.Any())
+            {
+                query = query.Where(p => filters.Tags.Any(tag => p.Tags.Contains(tag)));
+            }
+            
+            // Order by rating (best first), then by price (lowest first)
+            query = query
+                .OrderByDescending(p => p.Rating)
+                .ThenBy(p => p.Price);
+            
+            var entities = await query
+                .Take(limit)
+                .ToListAsync();
+            
+            var products = entities.Select(ProductMapper.ToDomain);
+            
+            return new Result<IEnumerable<Product>, Error>.Success(products);
+        }
+        catch (Exception ex)
+        {
+            return new Result<IEnumerable<Product>, Error>.Failure(
+                new Error.DatabaseError($"Database error: {ex.Message}"));
+        }
+    }
+
+    public async Task<Result<IEnumerable<Product>, Error>> HybridSearchAsync(
+        ProductSearchFilters filters, 
+        Vector queryEmbedding,
+        int limit)
+    {
+        try
+        {
+            var query = _context.Products
+                .Where(p => p.IsActive)
+                .Where(p => p.Embedding != null) // Only products with embeddings
+                .AsQueryable();
+            
+            // Apply structured filters (same as SearchWithFiltersAsync)
+            if (!string.IsNullOrWhiteSpace(filters.Category))
+            {
+                query = query.Where(p => p.Category == filters.Category);
+            }
+            
+            if (!string.IsNullOrWhiteSpace(filters.Brand))
+            {
+                query = query.Where(p => p.Brand == filters.Brand);
+            }
+            
+            if (filters.MinPrice.HasValue)
+            {
+                query = query.Where(p => p.Price >= filters.MinPrice.Value);
+            }
+            
+            if (filters.MaxPrice.HasValue)
+            {
+                query = query.Where(p => p.Price <= filters.MaxPrice.Value);
+            }
+            
+            if (filters.MinRating.HasValue)
+            {
+                query = query.Where(p => p.Rating >= filters.MinRating.Value);
+            }
+            
+            if (filters.InStock.HasValue && filters.InStock.Value)
+            {
+                query = query.Where(p => p.Stock > 0);
+            }
+            
+            // Apply tag filters (any tag matches)
+            if (filters.Tags != null && filters.Tags.Any())
+            {
+                query = query.Where(p => filters.Tags.Any(tag => p.Tags.Contains(tag)));
+            }
+            
+            // Apply semantic ranking using vector similarity (cosine distance)
+            // Lower distance = more similar = better match
+            query = query.OrderBy(p => p.Embedding!.CosineDistance(queryEmbedding));
+            
+            var entities = await query
+                .Take(limit)
+                .ToListAsync();
+            
+            var products = entities.Select(ProductMapper.ToDomain);
+            
+            return new Result<IEnumerable<Product>, Error>.Success(products);
+        }
+        catch (Exception ex)
+        {
+            return new Result<IEnumerable<Product>, Error>.Failure(
                 new Error.DatabaseError($"Database error: {ex.Message}"));
         }
     }

@@ -36,6 +36,19 @@ public static class DevelopmentEndpoints
             .WithName("RegenerateEmbeddings")
             .WithSummary("Regenerate embeddings for ALL products (clears existing ones first)");
 
+        // Prompt Management
+        devGroup.MapGet("/prompts/{*promptPath}", GetPrompt)
+            .WithName("GetPrompt")
+            .WithSummary("View a prompt file");
+
+        devGroup.MapPost("/prompts/clear-cache", ClearPromptCache)
+            .WithName("ClearPromptCache")
+            .WithSummary("Clear the prompt cache");    
+        
+        devGroup.MapDelete("/prompts/{*promptPath}", ClearSpecificPromptCache)
+            .WithName("ClearSpecificPromptCache")
+            .WithSummary("Clear cache for a specific prompt");
+        
         return app;
     }
 
@@ -142,6 +155,50 @@ public static class DevelopmentEndpoints
         catch (Exception ex)
         {
             return Results.Problem($"Error regenerating embeddings: {ex.Message}");
+        }
+    }
+    
+    /// <summary>
+    /// Views a prompt file.
+    /// </summary>
+    private static async Task<IResult> GetPrompt(string promptPath, IPromptService promptService)
+    {
+        try
+        {
+            var content = await promptService.GetPromptAsync(promptPath);
+            return Results.Ok(new { promptPath, content });
+        }
+        catch (FileNotFoundException ex)
+        {
+            return Results.NotFound(new { error = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return Results.Problem($"Error loading prompt: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Clears the prompt cache (useful when editing prompts during development).
+    /// </summary>
+    private static async Task<IResult> ClearPromptCache(IPromptService promptService)
+    {
+        await promptService.ClearCacheAsync();
+        return Results.Ok(new { success = true, message = "Prompt cache cleared (will expire naturally)" });
+    }
+    /// <summary>
+    /// Clears cache for a specific prompt.
+    /// </summary>
+    private static async Task<IResult> ClearSpecificPromptCache(string promptPath, IPromptService promptService)
+    {
+        try
+        {
+            await promptService.ClearPromptCacheAsync(promptPath);
+            return Results.Ok(new { success = true, message = $"Cache cleared for prompt: {promptPath}" });
+        }
+        catch (Exception ex)
+        {
+            return Results.Problem($"Error clearing cache: {ex.Message}");
         }
     }
 }

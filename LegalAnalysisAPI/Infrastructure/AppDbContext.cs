@@ -1,0 +1,19 @@
+using Microsoft.EntityFrameworkCore;
+
+namespace LegalAnalysisAPI.Infrastructure;
+
+public class AppDbContext : DbContext
+{
+    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
+    {
+    }
+    
+    
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        // Enable pgvector extension
+        modelBuilder.HasPostgresExtension("vector");        
+        
+ 
+    }
+}

@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: ankane/pgvector:latest
+    container_name: legaldb-postgres
+    environment:
+      POSTGRES_USER: legaluser
+      POSTGRES_PASSWORD: legalpass
+      POSTGRES_DB: legaldb
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:

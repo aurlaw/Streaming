@@ -3,7 +3,7 @@ using System.Text.Json.Serialization.Metadata;
 using LegalAnalysisAPI.Domain;
 using Microsoft.Extensions.Caching.Distributed;
 
-namespace UserManagementApi.Extensions;
+namespace LegalAnalysisAPI.Extensions;
 
 /// <summary>
 /// Extension methods for adding caching to Result pipelines.

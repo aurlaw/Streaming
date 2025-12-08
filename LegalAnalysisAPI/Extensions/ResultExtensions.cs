@@ -1,6 +1,6 @@
 using LegalAnalysisAPI.Domain;
 
-namespace UserManagementApi.Extensions;
+namespace LegalAnalysisAPI.Extensions;
 
 /// <summary>
 /// Extension methods for chaining Result operations in a railway-oriented programming style.

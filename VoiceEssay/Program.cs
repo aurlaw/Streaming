@@ -4,6 +4,7 @@ using OpenAI;
 using Scalar.AspNetCore;
 using VoiceEssay.Endpoints;
 using VoiceEssay.Infrastructure;
+using VoiceEssay.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -20,6 +21,10 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 // Configure options
 builder.Services.Configure<OpenAIOptions>(
     builder.Configuration.GetSection(OpenAIOptions.SectionName));
+builder.Services.Configure<AnthropicOptions>(
+    builder.Configuration.GetSection(AnthropicOptions.SectionName));
+builder.Services.Configure<VoiceEssayOptions>(
+    builder.Configuration.GetSection(VoiceEssayOptions.SectionName));
 
 // Configure Postgres/pgvector
 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -47,6 +52,10 @@ var openAiClient = new OpenAIClient(openAIApiKey);
 var embeddingClient = openAiClient.GetEmbeddingClient(openAIOptions.EmbeddingModel);
 builder.Services.AddEmbeddingGenerator(embeddingClient.AsIEmbeddingGenerator(openAIOptions.EmbeddingDimensions))
     .UseLogging();
+
+// Register services
+builder.Services.AddSingleton<IPromptService, PromptService>();
+
 
 
 // Optional: Add caching

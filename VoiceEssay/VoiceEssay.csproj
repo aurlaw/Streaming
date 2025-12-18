@@ -4,10 +4,14 @@
         <TargetFramework>net9.0</TargetFramework>
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
+        <!--        <PublishAot>true</PublishAot>-->
+        <!--        <PublishTrimmed>true</PublishTrimmed>        -->
+        <InvariantGlobalization>true</InvariantGlobalization>
         <UserSecretsId>1a710647-2f88-4616-93f4-619ffd41b440</UserSecretsId>
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="Anthropic.SDK" Version="5.8.0" />
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.11" />
         <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.11">
             <PrivateAssets>all</PrivateAssets>
@@ -19,4 +23,14 @@
         <PackageReference Include="Pgvector.EntityFrameworkCore" Version="0.2.2" />
         <PackageReference Include="Scalar.AspNetCore" Version="2.11.1" />
     </ItemGroup>
+
+    <ItemGroup>
+        <Folder Include="Infrastructure\Migrations\" />
+    </ItemGroup>
+    <ItemGroup>
+        <None Update="Prompts\**\*.md">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+    </ItemGroup>
+
 </Project>

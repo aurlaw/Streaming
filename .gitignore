@@ -487,6 +487,3 @@ $RECYCLE.BIN/
 *.db
 
 
-# Local storage
-app-data/
-!app-data/.gitkeep

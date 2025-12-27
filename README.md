@@ -18,3 +18,4 @@ usermanagementapi % dotnet publish -c Release -r osx-arm64  --self-contained tru
 ## Legal Analysis API
 
 ``docker-compose up -d``
+
